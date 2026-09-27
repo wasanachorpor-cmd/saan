@@ -125,8 +125,14 @@
   if (!reader) return;
 
   if (reader.getAttribute("data-status") === "processing") {
+    var docId = reader.getAttribute("data-doc-id");
+    function reloadWhenReady(payload) {
+      if (payload && payload.status && payload.status !== "processing") {
+        window.location.reload();
+      }
+    }
     if (window.EventSource) {
-      var source = new EventSource("/api/documents/" + reader.getAttribute("data-doc-id") + "/events");
+      var source = new EventSource("/api/documents/" + docId + "/events");
       source.onmessage = function (event) {
         var payload = JSON.parse(event.data);
         var label = reader.getAttribute("data-label-" + payload.status);
@@ -137,6 +143,12 @@
         }
       };
     }
+    window.setInterval(function () {
+      fetch("/api/documents/" + docId, { credentials: "same-origin" })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(reloadWhenReady)
+        .catch(function () {});
+    }, 3000);
   }
 
   document.querySelectorAll("[data-snippet-text]").forEach(wrapWords);

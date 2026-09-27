@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 import re
+import time
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -546,8 +547,40 @@ def _mean_confidence(pytesseract, image, lang: str) -> float | None:
     return round(sum(scores) / len(scores), 1)
 
 
+_GEMINI_FALLBACKS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite")
+
+
+def _gemini_models() -> list[str]:
+    chosen = get_settings().gemini_model.strip() or _GEMINI_FALLBACKS[0]
+    models = [chosen]
+    for name in _GEMINI_FALLBACKS:
+        if name not in models:
+            models.append(name)
+    return models
+
+
 def _gemini(path: Path) -> OcrResult:
-    settings = get_settings()
+    last_busy = False
+    for model in _gemini_models():
+        for attempt in range(3):
+            try:
+                return _gemini_once(path, model)
+            except httpx.HTTPStatusError as exc:
+                code = exc.response.status_code
+                if code in {404, 429, 500, 503}:
+                    last_busy = code != 404
+                    log.warning("Gemini %s returned %s on attempt %s", model, code, attempt + 1)
+                    if code in {429, 500, 503} and attempt < 2:
+                        time.sleep(1.6 * (attempt + 1))
+                        continue
+                    break
+                raise
+            except RuntimeError:
+                raise
+    raise RuntimeError("gemini_busy" if last_busy else "ocr_empty")
+
+
+def _gemini_once(path: Path, model: str) -> OcrResult:
     suffix = path.suffix.lower()
     mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(
         suffix, "image/jpeg"
@@ -578,20 +611,20 @@ def _gemini(path: Path) -> OcrResult:
         ],
         "generationConfig": {"temperature": 0.1},
     }
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{settings.gemini_model}:generateContent"
-    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     response = httpx.post(
         url,
-        headers={"x-goog-api-key": settings.gemini_api_key.strip()},
+        headers={"x-goog-api-key": get_settings().gemini_api_key.strip()},
         json=payload,
         timeout=60,
     )
     response.raise_for_status()
     body = response.json()
-    parts = body["candidates"][0]["content"]["parts"]
-    text = "\n".join(part.get("text", "") for part in parts).strip()
+    candidates = body.get("candidates") or []
+    if not candidates:
+        raise RuntimeError("ocr_empty")
+    parts = ((candidates[0].get("content") or {}).get("parts")) or []
+    text = "\n".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
     text = re.sub(r"^```[a-zA-Z]*\n", "", text)
     text = re.sub(r"\n```$", "", text).strip()
     text = clean_ocr_text(text)

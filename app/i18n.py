@@ -225,6 +225,7 @@ _ROWS: list[tuple[str, str, str]] = [
     ("gemini_scanning", "Gemini is reading this page…", "กำลังวิเคราะห์และสกัดข้อความด้วย Gemini AI..."),
     ("failed_hint", "No text came back. Try a sharper photo, or check that the Gemini key is valid.", "อ่านข้อความไม่ออก ลองถ่ายให้คมขึ้น หรือตรวจว่าคีย์ Gemini ใช้ได้"),
     ("gemini_missing", "This server has no Gemini key, so the page cannot be read yet.", "เซิร์ฟเวอร์นี้ยังไม่มีคีย์ Gemini จึงอ่านหน้านี้ไม่ได้"),
+    ("gemini_busy", "The reading service was busy. Upload the page again.", "ระบบอ่านรูปไม่ว่างเมื่อกี้ อัปโหลดหน้านี้อีกครั้ง"),
     ("text_download", "Download the text", "ดาวน์โหลดข้อความ"),
     ("read_another", "Read another page", "อ่านหน้าอื่น"),
     ("library_title", "My library", "เอกสารของฉัน"),
