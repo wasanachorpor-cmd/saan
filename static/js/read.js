@@ -46,12 +46,13 @@
     });
   }
 
-  function submitForm(form) {
+  function submitForm(form, fileOverride) {
     if (!form || !window.fetch) {
       form.submit();
       return;
     }
     var data = new FormData(form);
+    if (fileOverride) data.set("image", fileOverride, fileOverride.name);
     var file = data.get("image");
     if (!file || !file.name) {
       say((zone && zone.getAttribute("data-need-file")) || "Choose an image first.");
@@ -96,6 +97,76 @@
       event.preventDefault();
       submitForm(cameraForm);
     });
+    var cameraInput = document.getElementById("camera-input");
+    var openCamera = document.getElementById("open-camera");
+    var cameraLive = document.getElementById("camera-live");
+    var cameraVideo = document.getElementById("camera-video");
+    var cameraSnap = document.getElementById("camera-snap");
+    var cameraClose = document.getElementById("camera-close");
+    var cameraStream = null;
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(function (track) { track.stop(); });
+        cameraStream = null;
+      }
+      if (cameraVideo) cameraVideo.srcObject = null;
+      if (cameraLive) {
+        cameraLive.hidden = true;
+        cameraLive.classList.remove("is-on");
+      }
+    }
+
+    if (cameraInput) {
+      cameraInput.addEventListener("change", function () {
+        if (cameraInput.files && cameraInput.files[0]) submitForm(cameraForm);
+      });
+    }
+
+    if (openCamera) {
+      openCamera.addEventListener("click", function () {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !cameraVideo) {
+          if (cameraInput) cameraInput.click();
+          return;
+        }
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: "environment" } },
+        }).then(function (stream) {
+          stopCamera();
+          cameraStream = stream;
+          cameraVideo.srcObject = stream;
+          if (cameraLive) {
+            cameraLive.hidden = false;
+            cameraLive.classList.add("is-on");
+          }
+          return cameraVideo.play();
+        }).catch(function () {
+          say((zone && zone.getAttribute("data-camera-denied")) || "The camera did not open.");
+          if (cameraInput) cameraInput.click();
+        });
+      });
+    }
+
+    if (cameraClose) cameraClose.addEventListener("click", stopCamera);
+
+    if (cameraSnap && cameraVideo) {
+      cameraSnap.addEventListener("click", function () {
+        if (!cameraVideo.videoWidth || !cameraInput) return;
+        var canvas = document.createElement("canvas");
+        canvas.width = cameraVideo.videoWidth;
+        canvas.height = cameraVideo.videoHeight;
+        var context = canvas.getContext("2d");
+        if (!context) return;
+        context.drawImage(cameraVideo, 0, 0);
+          canvas.toBlob(function (blob) {
+            if (!blob) return;
+            var photo = new File([blob], "page.jpg", { type: "image/jpeg" });
+            stopCamera();
+            submitForm(cameraForm, photo);
+          }, "image/jpeg", 0.9);
+      });
+    }
   }
   if (zone) {
     ["dragenter", "dragover"].forEach(function (name) {

@@ -9,7 +9,7 @@
     {% if not document %}
       <h1>{{ t.desk_title }}</h1>
       <p class="lead">{{ t.desk_lead }}</p>
-      <div class="dropzone" id="dropzone" data-need-file="{{ t.upload_need_file }}" data-uploading="{{ t.uploading }}">
+        <div class="dropzone" id="dropzone" data-need-file="{{ t.upload_need_file }}" data-uploading="{{ t.uploading }}" data-camera-denied="{{ t.camera_denied }}">
         <h2 id="drop-title">{{ t.drop_title }}</h2>
         <p id="drop-hint">{{ t.drop_hint }}</p>
         <form id="file-form" class="stack" method="post" action="/documents" enctype="multipart/form-data">
@@ -22,11 +22,13 @@
         </form>
         <form id="camera-form" class="stack" method="post" action="/documents" enctype="multipart/form-data">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          <div class="field">
-            <label for="camera-input">{{ t.use_camera }}</label>
-            <input id="camera-input" name="image" type="file" accept="image/*" capture="environment">
+          <input id="camera-input" class="camera-file" name="image" type="file" accept="image/*" capture="environment">
+          <button class="btn btn-primary" id="open-camera" type="button">{{ t.use_camera }}</button>
+          <div class="camera-live" id="camera-live" hidden>
+            <video id="camera-video" playsinline autoplay muted></video>
+            <button class="btn btn-primary" id="camera-snap" type="button">{{ t.camera_snap }}</button>
+            <button class="btn btn-ghost" id="camera-close" type="button">{{ t.camera_close }}</button>
           </div>
-          <button class="btn btn-ghost" type="submit">{{ t.upload }}</button>
         </form>
         <p id="privacy-note" class="hint">{% if gemini_on %}{{ t.privacy_gemini }}{% else %}{{ t.privacy_local }}{% endif %} {{ t.privacy_window }}</p>
         <div class="scan" role="status">
@@ -144,5 +146,5 @@
   </section>
 {% endblock %}
 {% block scripts %}
-  <script src="/static/js/read.js?v=8" defer></script>
+  <script src="/static/js/read.js?v=9" defer></script>
 {% endblock %}
