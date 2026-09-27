@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     max_upload_bytes: int = 12 * 1024 * 1024
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     tesseract_cmd: str = ""
     session_https_only: bool = False
     seed_demo: bool = False
