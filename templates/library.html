@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap section">
+    <h1>{{ t.library_title }}</h1>
+    {% if not documents %}
+      <p class="lead">{{ t.library_empty }}</p>
+      <p><a class="btn btn-primary" href="/read">{{ t.nav_read }}</a></p>
+    {% else %}
+      <ul class="doc-list">
+        {% for doc in documents %}
+          <li>
+            <a class="doc-card glass" href="/read/{{ doc.id }}">
+              <img src="/documents/{{ doc.id }}/image" alt="" width="120" height="90">
+              <span>
+                <span class="doc-name">{{ doc.original_filename }}</span>
+                <span class="status status-{{ doc.status }}">{{ t['status_' ~ doc.status] }}</span>
+                <span class="hint">{{ doc.created_at|when }}</span>
+              </span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+{% endblock %}

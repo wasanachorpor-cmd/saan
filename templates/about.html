@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap narrow section about">
+    <p class="kicker">S.A.A.N.</p>
+    <h1>{{ t.about_title }}</h1>
+    <p class="lead">{{ t.about_lead }}</p>
+    <article class="glass about-card">
+      <h2>{{ t.about_mission_label }}</h2>
+      <p class="about-mission">ทุกคนมีสิทธิ์เข้าถึงความรู้อย่างเท่าเทียม</p>
+      <p class="hint">Everyone has an equal right to access knowledge.</p>
+    </article>
+    <article class="glass about-card">
+      <h2>{{ t.about_team }}</h2>
+      <ul class="about-names">
+        <li>Wasana J.</li>
+        <li>Thidaporn S.</li>
+      </ul>
+    </article>
+    <article class="glass about-card">
+      <h2>{{ t.about_contact }}</h2>
+      <p><a href="mailto:saan.accessibility@gmail.com">saan.accessibility@gmail.com</a></p>
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-contrast="{{ contrast }}" data-font="{{ font }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · S.A.A.N.</title>
+  <meta name="description" content="{{ t.meta_description }}">
+  <meta name="theme-color" content="#10141b">
+  <link rel="icon" href="/static/img/saan-mark.jpg" type="image/jpeg">
+  <link rel="stylesheet" href="/static/css/saan.css?v=20">
+  <script src="/static/js/boot.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true">
+    <div class="atmo-glow"></div>
+    <div class="atmo-grid"></div>
+    <span class="node n1"></span>
+    <span class="node n2"></span>
+    <span class="node n3"></span>
+    <span class="node n4"></span>
+  </div>
+  <a class="skip" href="#main">{{ t.skip }}</a>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="topbar-main">
+      <a class="brand" href="/">
+        <span class="brand-mark"><img src="/static/img/saan-mark.jpg" alt="" width="64" height="64"></span>
+        <span class="brand-name">S.A.A.N.</span>
+      </a>
+      <nav class="nav" aria-label="{{ t.primary_nav }}">
+        {% if user and user.role == 'reader' %}
+          <a href="/read" {% if request.url.path.startswith('/read') %}aria-current="page"{% endif %}>{{ t.nav_read }}</a>
+          <a href="/library" {% if request.url.path.startswith('/library') %}aria-current="page"{% endif %}>{{ t.nav_library }}</a>
+        {% elif user and user.role == 'volunteer' %}
+          <a href="/mission" {% if request.url.path.startswith('/mission') %}aria-current="page"{% endif %}>{{ t.nav_mission }}</a>
+        {% else %}
+          <a href="/login" {% if request.url.path == '/login' %}aria-current="page"{% endif %}>{{ t.nav_login }}</a>
+          <a href="/register" {% if request.url.path == '/register' %}aria-current="page"{% endif %}>{{ t.nav_register }}</a>
+        {% endif %}
+      </nav>
+      </div>
+      <div class="top-actions">
+        <form class="lang-switch" method="post" action="/prefs/lang">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="next" value="{{ request.url.path }}">
+          <div class="lang-toggle" role="group" aria-label="{{ t.language }}">
+            <button type="submit" name="value" value="en" aria-pressed="{{ 'true' if lang == 'en' else 'false' }}">EN</button>
+            <button type="submit" name="value" value="th" aria-pressed="{{ 'true' if lang == 'th' else 'false' }}">TH</button>
+          </div>
+        </form>
+        {% if user %}
+          <form method="post" action="/logout">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-signout" type="submit">{{ t.nav_logout }}</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+  <main id="main" tabindex="-1">
+    {% if flash %}
+      <div class="wrap">
+        <div class="banner" role="status">
+          <p>{{ t[flash] }}</p>
+          {% if earned %}<p>{{ t.points_earned.format(n=earned) }}</p>{% endif %}
+          {% for key in new_badges %}
+            <p>{{ t.new_badge.format(name=t['badge_' ~ key]) }}</p>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+    {% block main %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p>{{ t.footer_tagline }}</p>
+      <a href="/about">{{ t.footer_about }}</a>
+      <a href="/accessibility">{{ t.footer_a11y }}</a>
+    </div>
+  </footer>
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+  <aside class="a11y-bar" aria-label="{{ t.a11y_bar }}">
+    <form data-pref="font" data-value="sm" method="post" action="/prefs/font">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="next" value="{{ request.url.path }}">
+      <input type="hidden" name="value" value="sm">
+      <button type="submit" aria-pressed="{{ 'true' if font == 'sm' else 'false' }}" aria-label="{{ t.font_smaller }}">A−</button>
+    </form>
+    <form data-pref="font" data-value="md" method="post" action="/prefs/font">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="next" value="{{ request.url.path }}">
+      <input type="hidden" name="value" value="md">
+      <button type="submit" aria-pressed="{{ 'true' if font == 'md' else 'false' }}" aria-label="{{ t.font_reset }}">A</button>
+    </form>
+    <form data-pref="font" data-value="lg" method="post" action="/prefs/font">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="next" value="{{ request.url.path }}">
+      <input type="hidden" name="value" value="lg">
+      <button type="submit" aria-pressed="{{ 'true' if font in ['lg', 'xl'] else 'false' }}" aria-label="{{ t.font_larger }}">A+</button>
+    </form>
+    <button type="button" id="read-page" aria-pressed="false" data-read="{{ t.read_page }}" data-stop="{{ t.stop_reading }}">{{ t.read_page }}</button>
+  </aside>
+  <script src="/static/js/a11y.js?v=2" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

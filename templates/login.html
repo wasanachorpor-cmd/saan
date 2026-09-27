@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap narrow section">
+    <h1>{{ t.login_title }}</h1>
+    <p class="lead">{{ t.login_lead }}</p>
+    {% if error %}
+      <div class="banner banner-bad" role="alert"><p>{{ t[error] }}</p></div>
+    {% endif %}
+
+    <h2 class="login-label">{{ t.login_email }}</h2>
+    <form class="stack glass form" method="post" action="/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      <div class="field">
+        <label for="email">{{ t.email }}</label>
+        <input id="email" name="email" type="email" autocomplete="username" required value="{{ email or '' }}" {% if error == 'err_credentials' %}aria-invalid="true"{% endif %}>
+      </div>
+      <div class="field">
+        <label for="password">{{ t.password }}</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required {% if error == 'err_credentials' %}aria-invalid="true"{% endif %}>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ t.login_email }}</button>
+    </form>
+
+    <form class="social-form glass" method="get">
+      <fieldset>
+        <legend>{{ t.social_role }}</legend>
+        <label class="choice">
+          <input type="radio" name="role" value="reader" checked>
+          <span>{{ t.role_reader }}</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="role" value="volunteer">
+          <span>{{ t.role_volunteer }}</span>
+        </label>
+      </fieldset>
+      <div class="social-actions">
+        <button class="btn btn-line" type="submit" formaction="/auth/line">{{ t.login_line }}</button>
+        <button class="btn btn-facebook" type="submit" formaction="/auth/facebook">{{ t.login_facebook }}</button>
+      </div>
+    </form>
+
+    <p><a href="/register">{{ t.need_account }}</a></p>
+  </section>
+{% endblock %}

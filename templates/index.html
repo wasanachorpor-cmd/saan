@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="hero">
+    <div class="hero-bg" aria-hidden="true">
+      <span class="orb orb-a"></span>
+      <span class="orb orb-b"></span>
+      <span class="ring ring-a"></span>
+      <span class="ring ring-b"></span>
+    </div>
+    <div class="wrap hero-inner">
+      <p class="kicker">{{ t.hero_kicker }}</p>
+      <h1>{{ t.hero_title | replace('อย่างเท่าเทียม', '<span class="keep">อย่างเท่าเทียม</span>') | safe }}</h1>
+      <p class="lead">{{ t.hero_lead }}</p>
+      <div class="welcome-banner">
+        <button type="button" class="btn btn-primary" id="welcome-play">{{ t.welcome_play }}</button>
+        <p>{{ t.welcome_line }}</p>
+      </div>
+      <div class="portals">
+        <a class="portal glass" href="/read">
+          <h2>{{ t.portal_read_title }}</h2>
+          <p>{{ t.portal_read_body }}</p>
+          <span class="btn btn-primary">{{ t.portal_read_cta }}</span>
+        </a>
+        <a class="portal glass" href="/mission">
+          <h2>{{ t.portal_vol_title }}</h2>
+          <p>{{ t.portal_vol_body }}</p>
+          <span class="btn btn-primary">{{ t.portal_vol_cta }}</span>
+        </a>
+      </div>
+    </div>
+    <div class="wrap preview-wrap">
+      <section class="preview glass" aria-labelledby="preview-kicker">
+        <p class="kicker" id="preview-kicker">{{ t.preview_kicker }}</p>
+        <div class="preview-tabs" role="tablist" aria-label="{{ t.preview_kicker }}">
+          <button type="button" role="tab" id="preview-tab-1" aria-selected="true" aria-controls="preview-panel-1">1 · {{ t.preview_1_label }}</button>
+          <button type="button" role="tab" id="preview-tab-2" aria-selected="false" aria-controls="preview-panel-2">2 · {{ t.preview_2_label }}</button>
+          <button type="button" role="tab" id="preview-tab-3" aria-selected="false" aria-controls="preview-panel-3">3 · {{ t.preview_3_label }}</button>
+        </div>
+        <div class="preview-panel" id="preview-panel-1" role="tabpanel" aria-labelledby="preview-tab-1">
+          <p class="preview-note">{{ t.preview_1_body }}</p>
+          <div class="fake-sheet is-messy" aria-hidden="true">
+            <span>สทธ เขาถง</span>
+            <span>ความร</span>
+          </div>
+        </div>
+        <div class="preview-panel" id="preview-panel-2" role="tabpanel" aria-labelledby="preview-tab-2" hidden>
+          <p class="preview-note">{{ t.preview_2_body }}</p>
+          <div class="fake-sheet" aria-hidden="true">
+            <span>สิทธิ์เข้าถึง</span>
+            <span>ความรู้</span>
+          </div>
+        </div>
+        <div class="preview-panel" id="preview-panel-3" role="tabpanel" aria-labelledby="preview-tab-3" hidden>
+          <p class="preview-note">{{ t.preview_3_body }}</p>
+          <div class="fake-sheet is-checked" aria-hidden="true">
+            <span>ทุกคนมีสิทธิ์เข้าถึงความรู้</span>
+            <span class="keep">อย่างเท่าเทียม</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+  <section class="wrap section impact" aria-labelledby="impact-title">
+    <p class="kicker">{{ t.impact_kicker }}</p>
+    <h2 id="impact-title">{{ t.impact_title }}</h2>
+    <p class="lead">{{ t.impact_lead }}</p>
+    <div class="impact-grid">
+      <article class="glass impact-card">
+        <h3 class="impact-stat">{{ t.impact_stat }}</h3>
+        <p>{{ t.impact_stat_body }}</p>
+      </article>
+      <article class="glass impact-card">
+        <h3>{{ t.impact_story_title }}</h3>
+        <p>{{ t.impact_story_body }}</p>
+      </article>
+      <article class="glass impact-card">
+        <h3>{{ t.impact_why_title }}</h3>
+        <p>{{ t.impact_why_body }}</p>
+      </article>
+    </div>
+  </section>
+  <section class="wrap section voices" aria-labelledby="voices-title">
+    <p class="kicker">{{ t.voices_kicker }}</p>
+    <h2 id="voices-title">{{ t.voices_title }}</h2>
+    <p class="lead">{{ t.voices_lead }}</p>
+    <div class="voice-grid">
+      <article class="glass voice-card">
+        <h3>{{ t.voice_1_role }}</h3>
+        <p>{{ t.voice_1_quote }}</p>
+      </article>
+      <article class="glass voice-card">
+        <h3>{{ t.voice_2_role }}</h3>
+        <p>{{ t.voice_2_quote }}</p>
+      </article>
+      <article class="glass voice-card">
+        <h3>{{ t.voice_3_role }}</h3>
+        <p>{{ t.voice_3_quote }}</p>
+      </article>
+    </div>
+  </section>
+  <section class="wrap section">
+    <h2>{{ t.how_title }}</h2>
+    <ol class="steps">
+      <li class="glass">
+        <h3>{{ t.step1_title }}</h3>
+        <p>{{ t.step1_body }}</p>
+      </li>
+      <li class="glass">
+        <h3>{{ t.step2_title }}</h3>
+        <p>{{ t.step2_body }}</p>
+      </li>
+      <li class="glass">
+        <h3>{{ t.step3_title }}</h3>
+        <p>{{ t.step3_body }}</p>
+      </li>
+    </ol>
+  </section>
+  <section class="wrap section">
+    <h2 class="sr-only">{{ t.footer_a11y }}</h2>
+    <ul class="promises">
+      <li>{{ t.promise_1 }}</li>
+      <li>{{ t.promise_2 }}</li>
+      <li>{{ t.promise_3 }}</li>
+      <li>{{ t.promise_4 }}</li>
+    </ul>
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/js/home.js?v=1" defer></script>
+{% endblock %}

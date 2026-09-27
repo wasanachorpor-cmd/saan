@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap section">
+    <p class="crumbs"><a href="/mission">{{ t.nav_mission }}</a></p>
+    <h1>{{ t.review_title }}</h1>
+    <p class="lead">{{ t.review_lead }}</p>
+    {% if error %}
+      <div class="banner banner-bad" role="alert"><p>{{ t[error] }}</p></div>
+    {% endif %}
+    {% if state == 'edit' %}
+      <p class="banner" role="status">{{ t.claimed_by_you }}</p>
+    {% elif state == 'locked' %}
+      <p class="banner" role="status">{{ t.locked }}</p>
+    {% endif %}
+    <a class="skip-inline" href="#corrected">{{ t.skip_to_editor }}</a>
+    <div class="split">
+      <div class="glass pane">
+        <h2>{{ t.original_image }}</h2>
+        <div class="zoom-tools" role="group" aria-label="{{ t.zoom_label }}">
+          <button class="btn btn-ghost" type="button" id="zoom-in">{{ t.zoom_in }}</button>
+          <button class="btn btn-ghost" type="button" id="zoom-out">{{ t.zoom_out }}</button>
+          <button class="btn btn-ghost" type="button" id="zoom-reset">{{ t.zoom_reset }}</button>
+        </div>
+        {% if snippet.document.image_purged_at %}
+          <p class="banner" role="status">{{ t.image_removed }}</p>
+        {% else %}
+        <div class="zoom-frame" id="page-frame" tabindex="0" aria-label="{{ t.image_pan }}">
+          <img id="page-image" data-zoom="2" alt="{{ t.original_image }}" src="/documents/{{ snippet.document.id }}/image">
+        </div>
+        {% endif %}
+      </div>
+      <div class="glass pane">
+        <h2>{{ t.original_extraction }}</h2>
+        <p class="source" lang="{{ snippet.language }}">{{ snippet.original_text | thai }}</p>
+        {% if snippet.flag_note %}
+          <p><strong>{{ t.flag_note }}:</strong> {% if snippet.flag_note == 'complex_layout' %}{{ t.complex_note }}{% else %}{{ snippet.flag_note }}{% endif %}</p>
+        {% endif %}
+        {% if state == 'edit' %}
+          <form id="correct-form" method="post" action="/mission/{{ snippet.id }}/correct">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <div class="field">
+              <label for="corrected">{{ t.corrected_label }}</label>
+              <textarea id="corrected" name="text" required maxlength="20000" rows="12" lang="{{ snippet.language }}">{{ draft if draft is defined else (snippet.current_text | thai) }}</textarea>
+            </div>
+            <p class="hint" id="kbd">{{ t.keyboard_help }}</p>
+            <button class="btn btn-primary" type="submit">{{ t.save_correction }}</button>
+          </form>
+        {% elif state == 'take' %}
+          <form method="post" action="/mission/{{ snippet.id }}/claim">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn btn-primary" type="submit">
+              {% if snippet.claimed_by_id and snippet.claimed_by_id != user.id %}{{ t.take_over }}{% else %}{{ t.take_mission }}{% endif %}
+            </button>
+          </form>
+        {% else %}
+          <h2>{{ t.corrected_label }}</h2>
+          <p lang="{{ snippet.language }}">{{ snippet.current_text }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <section class="section">
+      <h2>{{ t.history }}</h2>
+      {% if snippet.edits %}
+        <ol class="history">
+          {% for edit in snippet.edits %}
+            <li class="glass">
+              <p><strong>{{ edit.volunteer.display_name }}</strong> · {{ edit.created_at|when }}</p>
+              <p lang="{{ snippet.language }}">{{ edit.new_text }}</p>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p>{{ t.no_history }}</p>
+      {% endif %}
+    </section>
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/js/review.js" defer></script>
+{% endblock %}

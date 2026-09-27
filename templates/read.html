@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block head %}
+  {% if document and document.status == 'processing' %}
+    <meta http-equiv="refresh" content="3">
+  {% endif %}
+{% endblock %}
+{% block main %}
+  <section class="wrap section">
+    {% if not document %}
+      <h1>{{ t.desk_title }}</h1>
+      <p class="lead">{{ t.desk_lead }}</p>
+      <div class="dropzone" id="dropzone" data-need-file="{{ t.upload_need_file }}" data-uploading="{{ t.uploading }}">
+        <h2 id="drop-title">{{ t.drop_title }}</h2>
+        <p id="drop-hint">{{ t.drop_hint }}</p>
+        <form id="file-form" class="stack" method="post" action="/documents" enctype="multipart/form-data">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <div class="field">
+            <label for="file-input">{{ t.choose_file }}</label>
+            <input id="file-input" name="image" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" aria-describedby="drop-hint privacy-note">
+          </div>
+          <button class="btn btn-primary" type="submit">{{ t.upload }}</button>
+        </form>
+        <form id="camera-form" class="stack" method="post" action="/documents" enctype="multipart/form-data">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <div class="field">
+            <label for="camera-input">{{ t.use_camera }}</label>
+            <input id="camera-input" name="image" type="file" accept="image/*" capture="environment">
+          </div>
+          <button class="btn btn-ghost" type="submit">{{ t.upload }}</button>
+        </form>
+        <p id="privacy-note" class="hint">{% if gemini_on %}{{ t.privacy_gemini }}{% else %}{{ t.privacy_local }}{% endif %} {{ t.privacy_window }}</p>
+        <div class="scan" role="status">
+          <div class="scan-stage" aria-hidden="true">
+            <span class="scan-orbit"></span>
+            <span class="scan-core"></span>
+            <span class="scan-beam"></span>
+          </div>
+          <p>{{ t.gemini_scanning }}</p>
+        </div>
+      </div>
+    {% else %}
+      <div
+        id="reader"
+        data-reader
+        data-doc-id="{{ document.id }}"
+        data-status="{{ document.status }}"
+        data-label-processing="{{ t.status_processing }}"
+        data-label-ready="{{ t.status_ready }}"
+        data-label-flagged="{{ t.status_flagged }}"
+        data-label-verified="{{ t.status_verified }}"
+        data-label-failed="{{ t.status_failed }}"
+        data-label-speaking="{{ t.speaking }}"
+        data-label-paused="{{ t.paused_state }}"
+        data-label-stopped="{{ t.stopped_state }}"
+        data-label-finished="{{ t.finished }}"
+        data-uploading="{{ t.uploading }}"
+        data-csrf="{{ csrf }}"
+        data-speak-failed="{{ t.need_thai_voice }}"
+      >
+        <p class="crumbs"><a href="/read">{{ t.read_another }}</a></p>
+        <h1>{{ document.original_filename }}</h1>
+        <p class="status status-{{ document.status }}">
+          <span class="sr-only">{{ t.status }}: </span>{{ t['status_' ~ document.status] }}
+        </p>
+        {% if document.engine %}
+          <p class="hint">{{ t.engine }}: {{ document.engine }}{% if document.confidence is not none %} · {{ t.confidence }}: {{ document.confidence }}%{% endif %}</p>
+        {% endif %}
+
+        {% if document.status == 'processing' %}
+          <div class="scan is-on" role="status" aria-busy="true">
+            <div class="scan-stage" aria-hidden="true">
+              <span class="scan-orbit"></span>
+              <span class="scan-core"></span>
+              <span class="scan-beam"></span>
+            </div>
+            <p>{{ t.gemini_scanning }}</p>
+            <p class="hint">{{ t.processing_hint }}</p>
+          </div>
+        {% elif document.status == 'failed' %}
+          <div class="banner banner-bad" role="alert">
+            <p>{{ t.failed_hint }}</p>
+            {% if document.error_message and document.error_message in t %}
+              <p>{{ t[document.error_message] }}</p>
+            {% elif document.error_message %}
+              <details>
+                <summary>{{ t.technical_detail }}</summary>
+                <p>{{ document.error_message }}</p>
+              </details>
+            {% endif %}
+          </div>
+        {% else %}
+          {% if document.layout_kind %}
+            <div class="banner" role="status"><p>{{ t.complex_warning }}</p></div>
+          {% endif %}
+          <p class="hint">{{ t.accuracy_note }}</p>
+          <section aria-labelledby="transcript-title">
+            <h2 id="transcript-title">{{ t.transcript }}</h2>
+            {% for snippet in document.snippets %}
+              <article class="snippet glass" lang="{{ snippet.language }}" aria-labelledby="sn-{{ snippet.id }}">
+                <div class="snippet-head">
+                  <h3 id="sn-{{ snippet.id }}">{{ t.snippet_label.format(n=loop.index) }}</h3>
+                  <p class="status status-{{ snippet.status }}">{{ t['status_' ~ snippet.status] }}</p>
+                  {% if snippet.confidence is not none and snippet.confidence < 70 %}
+                    <p class="pill">{{ t.low_confidence }}: {{ snippet.confidence }}%</p>
+                  {% endif %}
+                </div>
+                <div class="snippet-text" id="text-{{ snippet.id }}" data-snippet-text>{{ snippet.current_text | thai }}</div>
+                <div class="snippet-actions">
+                  <button class="btn btn-primary" type="button" data-play="text-{{ snippet.id }}">{{ t.play_paragraph }}</button>
+                  <form method="post" action="/documents/{{ document.id }}/snippets/{{ snippet.id }}/flag">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <button class="btn btn-send" type="submit">{{ t.report }}</button>
+                  </form>
+                </div>
+              </article>
+            {% endfor %}
+          </section>
+          <div class="player" id="player" role="region" aria-label="{{ t.player_label }}">
+            <div class="player-controls">
+              <button class="btn btn-primary" type="button" id="play-all">{{ t.play_all }}</button>
+              <button class="btn btn-ghost" type="button" id="pause">{{ t.pause }}</button>
+              <button class="btn btn-ghost" type="button" id="stop">{{ t.stop }}</button>
+            </div>
+            <div class="field rate-field">
+              <label for="rate">{{ t.speed }}</label>
+              <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1">
+              <output id="rate-out" for="rate">1.0×</output>
+            </div>
+            <p id="no-speech" hidden>{{ t.no_speech }}</p>
+            <noscript><p>{{ t.no_speech }}</p></noscript>
+          </div>
+        {% endif %}
+
+        <details class="danger-zone">
+          <summary>{{ t.delete_doc }}</summary>
+          <form method="post" action="/documents/{{ document.id }}/delete">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <p>{{ t.delete_confirm }}</p>
+            <button class="btn btn-danger" type="submit">{{ t.delete_yes }}</button>
+          </form>
+        </details>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/js/read.js?v=7" defer></script>
+{% endblock %}

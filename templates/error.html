@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap narrow section">
+    <h1>{{ t[code] }}</h1>
+    <p><a class="btn btn-primary" href="/">{{ t.back_home }}</a></p>
+    {% if user %}
+      <p class="hint">{{ t.switch_account }}</p>
+    {% endif %}
+  </section>
+{% endblock %}

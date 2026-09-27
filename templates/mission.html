@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap section">
+    <h1>{{ t.mission_title }}</h1>
+    <p class="lead">{{ t.mission_lead }}</p>
+    <div class="stats">
+      <article class="glass stat">
+        <h2>{{ t.trust }}</h2>
+        <p class="stat-value">{{ stats.trust }}</p>
+      </article>
+      <article class="glass stat">
+        <h2>{{ t.points }}</h2>
+        <p class="stat-value">{{ stats.points }}</p>
+      </article>
+      <article class="glass stat">
+        <h2>{{ t.corrections }}</h2>
+        <p class="stat-value">{{ stats.corrections }}</p>
+      </article>
+      <article class="glass stat">
+        <h2>{{ t.rank }}</h2>
+        <p class="stat-value">{{ stats.rank }}</p>
+      </article>
+    </div>
+
+    <div class="mission-layout">
+      <div>
+        {% if stats.trust >= 70 and pending %}
+          <h2 class="subhead">{{ t.moderation_title }}</h2>
+            <ul class="queue">
+              {% for edit in pending %}
+                <li>
+                  <article class="glass mission-card">
+                    <p class="source">{{ edit.previous_text }}</p>
+                    <p>{{ edit.new_text }}</p>
+                    <form method="post" action="/mission/edits/{{ edit.id }}/moderate" class="snippet-actions">
+                      <input type="hidden" name="csrf" value="{{ csrf }}">
+                      <button class="btn btn-primary" type="submit" name="decision" value="approve">{{ t.approve_edit }}</button>
+                      <button class="btn btn-ghost" type="submit" name="decision" value="reject">{{ t.reject_edit }}</button>
+                    </form>
+                  </article>
+                </li>
+              {% endfor %}
+            </ul>
+        {% endif %}
+        <div class="section-head">
+          <h2 id="queue-title">{{ t.queue_title }}</h2>
+          <a href="/mission">{{ t.manual_refresh }}</a>
+        </div>
+        <div data-queue data-count="{{ queue|length }}" data-updated="{{ t.queue_updated }}">
+          {% if not queue %}
+            <p class="glass wait">{{ t.queue_empty }}</p>
+          {% else %}
+            <ul class="queue">
+              {% for item in queue %}
+                <li>
+                  <article class="mission-card glass" lang="{{ item.language }}">
+                    <div class="mission-card-body">
+                      {% if not item.document.image_purged_at %}
+                        <img class="page-thumb" src="/documents/{{ item.document.id }}/image" alt="{{ t.thumb_label }}" width="92" height="120">
+                      {% endif %}
+                      <div class="mission-card-copy">
+                    <p class="status status-{{ item.status }}">{{ t['status_' ~ item.status] }}</p>
+                    {% if item.confidence is not none and item.confidence < 70 %}
+                      <p class="pill">{{ t.low_confidence }}: {{ item.confidence }}%</p>
+                    {% endif %}
+                    <p class="excerpt">{{ item.current_text | thai }}</p>
+                    {% if item.flag_note %}
+                      <p><strong>{{ t.flag_note }}:</strong> {% if item.flag_note == 'complex_layout' %}{{ t.complex_note }}{% else %}{{ item.flag_note }}{% endif %}</p>
+                    {% endif %}
+                    {% if item.flagged_at %}
+                      <p class="hint">{{ t.waiting }} {{ item.flagged_at|when }}</p>
+                    {% endif %}
+                    <a class="btn btn-primary" href="/mission/{{ item.id }}">{{ t.open_mission }}</a>
+                      </div>
+                    </div>
+                  </article>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+      <aside class="side" aria-labelledby="badge-title">
+        <h2 id="badge-title">{{ t.your_badges }}</h2>
+        <ul class="badges">
+          {% for badge in stats.badges %}
+            <li class="badge glass {% if badge.earned %}is-earned{% endif %}">
+              <h3>{{ t['badge_' ~ badge.key] }}</h3>
+              <p>{{ t['badge_' ~ badge.key ~ '_d'] }}</p>
+              <p class="hint">{{ t.progress_of.format(current=badge.current, need=badge.need) }}</p>
+            </li>
+          {% endfor %}
+        </ul>
+      </aside>
+    </div>
+    <section class="board" aria-labelledby="board-title">
+      <h2 id="board-title">{{ t.board_title }}</h2>
+      <nav class="board-tabs" aria-label="{{ t.board_title }}">
+        <a href="/mission?board=day" {% if board == 'day' %}aria-current="page"{% endif %}>{{ t.board_day }}</a>
+        <a href="/mission?board=month" {% if board == 'month' %}aria-current="page"{% endif %}>{{ t.board_month }}</a>
+        <a href="/mission?board=year" {% if board == 'year' %}aria-current="page"{% endif %}>{{ t.board_year }}</a>
+      </nav>
+      {% if leaders %}
+        <ol class="leaders glass">
+          {% for row in leaders %}
+            <li {% if row.you %}class="is-you"{% endif %}>
+              <span class="rank">{{ row.rank }}</span>
+              <span>{{ row.name }}{% if row.you %} <span class="hint">({{ t.you }})</span>{% endif %}</span>
+              <span class="points">{{ row.points }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p>{{ t.leaderboard_empty }}</p>
+      {% endif %}
+    </section>
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/js/mission.js?v=3" defer></script>
+{% endblock %}

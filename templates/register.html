@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block main %}
+  <section class="wrap narrow section">
+    <h1>{{ t.register_title }}</h1>
+    <p class="lead">{{ t.register_lead }}</p>
+    {% if error %}
+      <div class="banner banner-bad" role="alert"><p>{{ t[error] }}</p></div>
+    {% endif %}
+    <form class="stack glass form" method="post" action="/register">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field">
+        <label for="display_name">{{ t.display_name }}</label>
+        <input id="display_name" name="display_name" type="text" autocomplete="nickname" required minlength="2" maxlength="80" value="{{ display_name or '' }}" {% if error == 'err_name' %}aria-invalid="true"{% endif %}>
+      </div>
+      <div class="field">
+        <label for="email">{{ t.email }}</label>
+        <input id="email" name="email" type="email" autocomplete="email" required value="{{ email or '' }}" {% if error == 'err_email' or error == 'err_email_taken' %}aria-invalid="true"{% endif %}>
+      </div>
+      <div class="field">
+        <label for="password">{{ t.password }}</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" aria-describedby="password-help" {% if error == 'err_password_short' %}aria-invalid="true"{% endif %}>
+        <p id="password-help" class="hint">{{ t.password_help }}</p>
+      </div>
+      <fieldset>
+        <legend>{{ t.role }}</legend>
+        <label class="choice">
+          <input type="radio" name="role" value="reader" {% if role != 'volunteer' %}checked{% endif %} required>
+          <span>{{ t.role_reader }}</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="role" value="volunteer" {% if role == 'volunteer' %}checked{% endif %}>
+          <span>{{ t.role_volunteer }}</span>
+        </label>
+      </fieldset>
+      <button class="btn btn-primary" type="submit">{{ t.submit_register }}</button>
+    </form>
+    <p><a href="/login">{{ t.have_account }}</a></p>
+  </section>
+{% endblock %}
