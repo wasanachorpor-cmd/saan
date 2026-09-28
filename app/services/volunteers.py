@@ -133,7 +133,6 @@ def correct(db: Session, user: User, snippet_id: int, new_text: str) -> tuple[in
 
     changed = normalize(snippet.current_text) != normalize(text)
     trust = user.trust if user.trust is not None else 50
-    held = changed and is_critical_edit(snippet.current_text, text, trust)
     points = 0
     badges: list[str] = []
     db.add(
@@ -142,17 +141,9 @@ def correct(db: Session, user: User, snippet_id: int, new_text: str) -> tuple[in
             volunteer_id=user.id,
             previous_text=snippet.current_text,
             new_text=text,
-            review_state="pending" if held else "live",
+            review_state="live",
         )
     )
-    if held:
-        snippet.status = "in_review"
-        snippet.claimed_by_id = None
-        snippet.claimed_at = None
-        recompute_document(snippet.document)
-        db.commit()
-        return points, badges
-
     points = 25 if changed else 10
     snippet.current_text = text
     snippet.status = "verified"

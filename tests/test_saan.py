@@ -136,6 +136,50 @@ def test_upload_flag_and_correction(client, monkeypatch):
     assert "page.png" in library.text
     again = client.get(location)
     assert "Hello, world." in again.text
+    assert 'class="status status-verified"' in again.text
+
+
+def test_large_correction_reaches_the_reader(client, monkeypatch):
+    from app.ocr import OcrResult
+
+    monkeypatch.setattr(
+        "app.services.documents.run_ocr",
+        lambda path: OcrResult("The machine dropped most of this printed sentence.", "test", 40.0),
+    )
+    _register(client, "reader2@example.com", "Reader Two", "reader")
+    desk = client.get("/read")
+    uploaded = client.post(
+        "/documents",
+        data={"csrf": _csrf(desk.text)},
+        files={"image": ("lesson.png", _png(), "image/png")},
+    )
+    page = uploaded.text
+    location = uploaded.url.path
+    flag = re.search(r'action="(/documents/\d+/snippets/\d+/flag)"', page)
+    assert flag
+    flagged = client.post(flag.group(1), data={"csrf": _csrf(page)})
+    client.post("/logout", data={"csrf": _csrf(flagged.text)})
+    _register(client, "volunteer2@example.com", "Volunteer Two", "volunteer")
+    mission = client.get("/mission")
+    link = re.search(r'href="(/mission/\d+)"', mission.text)
+    assert link
+    review = client.get(link.group(1))
+    claimed = client.post(link.group(1) + "/claim", data={"csrf": _csrf(review.text)})
+    rewritten = "Everyone has the right to learn from this printed page."
+    saved = client.post(
+        link.group(1) + "/correct",
+        data={"csrf": _csrf(claimed.text), "text": rewritten},
+    )
+    assert saved.status_code == 200
+    client.post("/logout", data={"csrf": _csrf(saved.text)})
+    login = client.get("/login")
+    client.post(
+        "/login",
+        data={"csrf": _csrf(login.text), "email": "reader2@example.com", "password": "demo-pass-1", "next": ""},
+    )
+    again = client.get(location)
+    assert rewritten in again.text
+    assert 'class="status status-verified"' in again.text
 
 
 def test_speak_requires_login(client):
@@ -278,7 +322,7 @@ def test_image_deletes_after_the_privacy_window(client, monkeypatch):
         db.close()
 
 
-def test_large_rewrite_waits_for_a_trusted_volunteer(client, monkeypatch):
+def test_large_rewrite_reaches_the_reader(client, monkeypatch):
     from app.ocr import OcrResult
 
     monkeypatch.setattr(
@@ -305,11 +349,12 @@ def test_large_rewrite_waits_for_a_trusted_volunteer(client, monkeypatch):
     link = re.search(r'href="(/mission/\d+)"', mission.text)
     review = client.get(link.group(1))
     claimed = client.post(link.group(1) + "/claim", data={"csrf": _csrf(review.text)})
+    rewritten = "Everyone has the right to learn from this printed page."
     saved = client.post(
         link.group(1) + "/correct",
-        data={"csrf": _csrf(claimed.text), "text": "completely unrelated vandal text with no shared words at all"},
+        data={"csrf": _csrf(claimed.text), "text": rewritten},
     )
-    assert "held" in saved.text.lower() or "การแก้นี้" in saved.text or "trusted volunteer" in saved.text.lower()
+    assert saved.status_code == 200
     client.post("/logout", data={"csrf": _csrf(saved.text)})
     login = client.get("/login")
     client.post(
@@ -317,8 +362,8 @@ def test_large_rewrite_waits_for_a_trusted_volunteer(client, monkeypatch):
         data={"csrf": _csrf(login.text), "email": "reader-trust@example.com", "password": "demo-pass-1", "next": ""},
     )
     again = client.get(uploaded.url.path)
-    assert "Hello world." in again.text
-    assert "unrelated vandal" not in again.text
+    assert rewritten in again.text
+    assert 'class="status status-verified"' in again.text
 
 
 def test_scan_confidence_sentence_and_parser():
