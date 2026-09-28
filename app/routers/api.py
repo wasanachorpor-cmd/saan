@@ -25,7 +25,7 @@ from app.web import current_user
 _WELCOME = {
     # The on-screen line keeps the official wording. This spoken line is the same greeting
     # in a form the Thai voice can actually pronounce.
-    "th": "ยินดีต้อนรับสู่เอสเอเอ็น แพลตฟอร์มเทคโนโลยี เพื่อให้ทุกคนเรียนได้อย่างเท่าเทียม",
+    "th": "ยินดีต้อนรับสู่เอส เอ เอ เอน แพลตฟอร์มเทคโนโลยี เพื่อให้ทุกคนเรียนได้อย่างเท่าเทียม",
     "en": "Welcome to S.A.A.N., a platform for equal access to learning.",
 }
 _welcome_audio: dict[str, bytes] = {}
@@ -75,15 +75,41 @@ async def welcome(request: Request, lang: str = "th"):
     return Response(content=_welcome_audio[choice], media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+class PageVoiceRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=220)
+    lang: str = "th-TH"
+    rate: float = 1.0
+
+
+@router.post("/page-voice")
+async def page_voice(body: PageVoiceRequest, request: Request):
+    """Read the words already on the screen. No login, so every page can be heard."""
+    token = request.headers.get("x-csrf")
+    if not csrf_ok(request, token):
+        raise AppError("csrf", 403)
+    host = request.client.host if request.client else "local"
+    if not allow(f"page-voice:{host}", 180, 600):
+        raise AppError("welcome_busy", 429)
+    try:
+        audio = await synthesize(body.text.strip(), body.lang, body.rate)
+    except RuntimeError as exc:
+        raise AppError("need_thai_voice", 503) from exc
+    return Response(content=audio, media_type="audio/mpeg")
+
+
 @router.post("/speak")
 async def speak(body: SpeakRequest, request: Request):
     user = _require(request)
-    if user.role != "reader":
+    text = body.text.strip()
+    if user.role != "reader" and len(text) > 280:
         raise AppError("forbidden", 403)
     token = request.headers.get("x-csrf")
     if not csrf_ok(request, token):
         raise AppError("csrf", 403)
-    audio = await synthesize(body.text.strip(), body.lang, body.rate)
+    try:
+        audio = await synthesize(text, body.lang, body.rate)
+    except RuntimeError as exc:
+        raise AppError("need_thai_voice", 503) from exc
     return Response(content=audio, media_type="audio/mpeg")
 
 

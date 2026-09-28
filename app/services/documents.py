@@ -152,9 +152,10 @@ def process_document(document_id: int) -> None:
                 document.error_message = None
                 schedule_image_purge(document)
                 log.info(
-                    "OCR ready document=%s engine=%s chars=%s",
+                    "OCR ready document=%s engine=%s confidence=%s chars=%s",
                     document.id,
                     result.engine,
+                    result.confidence,
                     sum(len(part) for part in parts),
                 )
         except Exception as exc:  # noqa: BLE001

@@ -102,6 +102,7 @@ def test_upload_flag_and_correction(client, monkeypatch):
             break
         page = client.get(location).text
     assert "Hello world." in page
+    assert "The system is 88% confident." in page
     flag = re.search(r'action="(/documents/\d+/snippets/\d+/flag)"', page)
     assert flag
     flagged = client.post(flag.group(1), data={"csrf": _csrf(page), "note": "Last word"})
@@ -320,9 +321,57 @@ def test_large_rewrite_waits_for_a_trusted_volunteer(client, monkeypatch):
     assert "unrelated vandal" not in again.text
 
 
+def test_scan_confidence_sentence_and_parser():
+    from app.i18n import STRINGS
+    from app.ocr import _clamp_percent, _parse_gemini_reading, estimate_confidence
+
+    assert STRINGS["th"]["scan_confidence"].format(n=86) == "ระบบมั่นใจ 86%"
+    assert STRINGS["en"]["scan_confidence"].format(n=86) == "The system is 86% confident."
+    text, score = _parse_gemini_reading('{"text": "สวัสดี\\n\\nโลก", "confidence": 86.6}')
+    assert text == "สวัสดี\n\nโลก"
+    assert score == 87
+    plain, missing = _parse_gemini_reading("สวัสดีครับ")
+    assert plain == "สวัสดีครับ"
+    assert missing is None
+    assert _clamp_percent(140) == 100
+    assert _clamp_percent(-4) == 0
+    assert _clamp_percent(True) is None
+    assert 20 <= estimate_confidence("A clear printed sentence about access.") <= 90
+
+
+def test_repeated_phrase_is_spoken_once(monkeypatch):
+    import asyncio
+
+    from app import speech
+
+    speech._CACHE.clear()
+    speech._CACHE_ORDER.clear()
+    speech._INFLIGHT.clear()
+    calls = {"n": 0}
+
+    async def fake(text, lang, rate, depth=0):
+        calls["n"] += 1
+        return b"mp3"
+
+    monkeypatch.setattr(speech, "_best", fake)
+    first = asyncio.run(speech.synthesize("hello", "en-US", 1))
+    second = asyncio.run(speech.synthesize("hello", "en-US", 1))
+    assert first == second == b"mp3"
+    assert calls["n"] == 1
+    speech._CACHE.clear()
+    speech._CACHE_ORDER.clear()
+
+
+def test_spoken_name_is_spelled_and_miti_is_split():
+    from app.speech import _spoken
+
+    assert _spoken("S.A.A.N. เปิดมิติใหม่", "th-TH") == "เอส เอ เอ เอน เปิดมิ ติใหม่"
+    assert _spoken("Welcome to S.A.A.N.", "en-US") == "Welcome to S A A N"
+
+
 def test_welcome_voice_is_the_fixed_greeting(client, monkeypatch):
     async def fake_voice(text, lang, rate):
-        assert "เอสเอเอ็น" in text
+        assert "เอส เอ เอ เอน" in text
         assert "เท่าเทียม" in text
         assert lang == "th-TH"
         return b"welcome-audio"

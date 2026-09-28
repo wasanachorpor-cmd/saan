@@ -12,7 +12,7 @@
       <h1>{{ t.hero_title | replace('อย่างเท่าเทียม', '<span class="keep">อย่างเท่าเทียม</span>') | safe }}</h1>
       <p class="lead">{{ t.hero_lead }}</p>
       <div class="welcome-banner">
-        <button type="button" class="btn btn-primary" id="welcome-play">{{ t.welcome_play }}</button>
+        <button type="button" class="btn btn-primary" id="welcome-play" data-busy="{{ t.speaking }}">{{ t.welcome_play }}</button>
         <p>{{ t.welcome_line }}</p>
       </div>
       <div class="portals">
@@ -126,5 +126,5 @@
   </section>
 {% endblock %}
 {% block scripts %}
-  <script src="/static/js/home.js?v=1" defer></script>
+  <script src="/static/js/home.js?v=5" defer></script>
 {% endblock %}

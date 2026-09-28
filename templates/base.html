@@ -7,7 +7,7 @@
   <meta name="description" content="{{ t.meta_description }}">
   <meta name="theme-color" content="#10141b">
   <link rel="icon" href="/static/img/saan-mark.jpg" type="image/jpeg">
-  <link rel="stylesheet" href="/static/css/saan.css?v=21">
+  <link rel="stylesheet" href="/static/css/saan.css?v=26">
   <script src="/static/js/boot.js"></script>
   {% block head %}{% endblock %}
 </head>
@@ -99,9 +99,11 @@
       <input type="hidden" name="value" value="lg">
       <button type="submit" aria-pressed="{{ 'true' if font in ['lg', 'xl'] else 'false' }}" aria-label="{{ t.font_larger }}">A+</button>
     </form>
-    <button type="button" id="read-page" aria-pressed="false" data-read="{{ t.read_page }}" data-stop="{{ t.stop_reading }}">{{ t.read_page }}</button>
+    <button type="button" id="read-page" aria-pressed="false" data-read="{{ t.read_page }}" data-stop="{{ t.stop_reading }}" data-busy="{{ t.speaking }}" data-csrf="{{ csrf }}" data-failed="{{ t.need_thai_voice }}">{{ t.read_page }}</button>
   </aside>
-  <script src="/static/js/a11y.js?v=2" defer></script>
+  <script src="/static/js/sound.js?v=5" defer></script>
+  <script src="/static/js/a11y.js?v=10" defer></script>
+  <script src="/static/js/scroll.js?v=2" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

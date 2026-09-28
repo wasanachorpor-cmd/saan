@@ -93,17 +93,21 @@
     });
   }
   if (cameraForm) {
-    cameraForm.addEventListener("submit", function (event) {
-      event.preventDefault();
-      submitForm(cameraForm);
-    });
     var cameraInput = document.getElementById("camera-input");
     var openCamera = document.getElementById("open-camera");
     var cameraLive = document.getElementById("camera-live");
     var cameraVideo = document.getElementById("camera-video");
     var cameraSnap = document.getElementById("camera-snap");
     var cameraClose = document.getElementById("camera-close");
+    var cameraNote = document.getElementById("camera-note");
     var cameraStream = null;
+
+    function cameraMessage(text) {
+      say(text);
+      if (!cameraNote) return;
+      cameraNote.hidden = !text;
+      cameraNote.textContent = text || "";
+    }
 
     function stopCamera() {
       if (cameraStream) {
@@ -117,54 +121,67 @@
       }
     }
 
+    function openLiveCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !cameraVideo) {
+        cameraMessage((zone && zone.getAttribute("data-camera-denied")) || "");
+        return;
+      }
+      cameraMessage("");
+      var tries = [
+        { audio: false, video: { facingMode: { ideal: "environment" } } },
+        { audio: false, video: true }
+      ];
+      function attempt(index) {
+        return navigator.mediaDevices.getUserMedia(tries[index]).catch(function (error) {
+          if (index + 1 < tries.length) return attempt(index + 1);
+          throw error;
+        });
+      }
+      attempt(0).then(function (stream) {
+        stopCamera();
+        cameraStream = stream;
+        cameraVideo.srcObject = stream;
+        cameraLive.hidden = false;
+        cameraLive.classList.add("is-on");
+        cameraLive.scrollIntoView({ block: "nearest" });
+        return cameraVideo.play();
+      }).catch(function () {
+        stopCamera();
+        cameraMessage((zone && zone.getAttribute("data-camera-denied")) || "");
+      });
+    }
+
     if (cameraInput) {
       cameraInput.addEventListener("change", function () {
         if (cameraInput.files && cameraInput.files[0]) submitForm(cameraForm);
       });
     }
-
     if (openCamera) {
       openCamera.addEventListener("click", function () {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !cameraVideo) {
-          if (cameraInput) cameraInput.click();
+        var phone = window.matchMedia("(pointer: coarse)").matches;
+        if (phone && cameraInput) {
+          cameraInput.click();
           return;
         }
-        navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { facingMode: { ideal: "environment" } },
-        }).then(function (stream) {
-          stopCamera();
-          cameraStream = stream;
-          cameraVideo.srcObject = stream;
-          if (cameraLive) {
-            cameraLive.hidden = false;
-            cameraLive.classList.add("is-on");
-          }
-          return cameraVideo.play();
-        }).catch(function () {
-          say((zone && zone.getAttribute("data-camera-denied")) || "The camera did not open.");
-          if (cameraInput) cameraInput.click();
-        });
+        openLiveCamera();
       });
     }
-
     if (cameraClose) cameraClose.addEventListener("click", stopCamera);
-
     if (cameraSnap && cameraVideo) {
       cameraSnap.addEventListener("click", function () {
-        if (!cameraVideo.videoWidth || !cameraInput) return;
+        if (!cameraVideo.videoWidth) return;
         var canvas = document.createElement("canvas");
         canvas.width = cameraVideo.videoWidth;
         canvas.height = cameraVideo.videoHeight;
         var context = canvas.getContext("2d");
         if (!context) return;
         context.drawImage(cameraVideo, 0, 0);
-          canvas.toBlob(function (blob) {
-            if (!blob) return;
-            var photo = new File([blob], "page.jpg", { type: "image/jpeg" });
-            stopCamera();
-            submitForm(cameraForm, photo);
-          }, "image/jpeg", 0.9);
+        canvas.toBlob(function (blob) {
+          if (!blob) return;
+          var photo = new File([blob], "page.jpg", { type: "image/jpeg" });
+          stopCamera();
+          submitForm(cameraForm, photo);
+        }, "image/jpeg", 0.9);
       });
     }
   }
@@ -231,11 +248,13 @@
   var pauseBtn = document.getElementById("pause");
   var stopBtn = document.getElementById("stop");
   var chain = [];
-  var chainIndex = 0;
   var stopped = true;
-  var announced = false;
-  var currentAudio = null;
-  var audioToken = 0;
+  var pending = false;
+  var heardAny = false;
+  var runToken = 0;
+  var decodedAhead = {};
+  var flights = {};
+  var pressed = [];
 
   if (rate && window.localStorage) {
     var savedRate = window.localStorage.getItem("saan_rate");
@@ -251,6 +270,7 @@
   if (rate) {
     rate.addEventListener("input", function () {
       showRate();
+      decodedAhead = {};
       if (window.localStorage) window.localStorage.setItem("saan_rate", rate.value);
     });
   }
@@ -287,46 +307,12 @@
     });
   }
 
-  function scriptOf(ch, current) {
-    var code = ch.charCodeAt(0);
-    if (code >= 0x0e00 && code <= 0x0e7f) return "th-TH";
-    if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) return "en-US";
-    if (code >= 0x0400 && code <= 0x04ff) return "ru-RU";
-    if (code >= 0x0600 && code <= 0x06ff) return "ar-SA";
-    if (code >= 0x0590 && code <= 0x05ff) return "he-IL";
-    if (code >= 0x0900 && code <= 0x097f) return "hi-IN";
-    if ((code >= 0x3040 && code <= 0x30ff) || (code >= 0x31f0 && code <= 0x31ff)) return "ja-JP";
-    if (code >= 0xac00 && code <= 0xd7af) return "ko-KR";
-    if (code >= 0x4e00 && code <= 0x9fff) return current === "ja-JP" ? "ja-JP" : "zh-CN";
-    return "";
+  function rateValue() {
+    return rate ? Number(rate.value) : 1;
   }
 
-  function segmentText(text) {
-    var parts = [];
-    var buf = "";
-    var kind = "";
-    var start = 0;
-    function push(value, lang, from) {
-      var trimmed = value.replace(/^\s+/, "");
-      var core = trimmed.replace(/\s+$/, "");
-      if (!core) return;
-      parts.push({ text: core, lang: lang || "en-US", start: from + (value.length - trimmed.length) });
-    }
-    for (var i = 0; i < text.length; i++) {
-      var next = scriptOf(text.charAt(i), kind);
-      if (!buf) start = i;
-      if (!next || !kind || next === kind) {
-        buf += text.charAt(i);
-        if (next) kind = next;
-      } else {
-        push(buf, kind, start);
-        buf = text.charAt(i);
-        kind = next;
-        start = i;
-      }
-    }
-    push(buf, kind, start);
-    return parts;
+  function clipKey(text, lang) {
+    return lang + "\n" + rateValue() + "\n" + text;
   }
 
   function voiceFor(bcp47) {
@@ -338,7 +324,7 @@
       if (chosen && chosen.lang.toLowerCase().replace("_", "-").indexOf(prefix) === 0) return chosen;
     }
     var matches = voices.filter(function (item) {
-      return item.lang.toLowerCase().replace("_", "-").indexOf(prefix) === 0;
+      return item.localService && item.lang.toLowerCase().replace("_", "-").indexOf(prefix) === 0;
     });
     matches.sort(function (a, b) {
       var wanted = bcp47.toLowerCase();
@@ -365,126 +351,161 @@
     if (current) current.classList.add("is-current");
   }
 
-  function speakNext() {
-    if (stopped) return;
-    if (chainIndex >= chain.length) {
-      stopped = true;
-      clearMarks();
-      say(reader.getAttribute("data-label-finished"));
-      return;
-    }
-    var job = chain[chainIndex++];
-    var chosen = window.speechSynthesis ? voiceFor(job.lang) : null;
-    if (chosen) speakLocal(job, chosen);
-    else speakRemote(job);
-  }
-
   function showJob(job) {
     var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     job.node.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
-    if (!announced) {
-      announced = true;
-      say(reader.getAttribute("data-label-speaking"));
-    }
   }
 
-  function speakLocal(job, chosen) {
-    var utterance = new SpeechSynthesisUtterance(job.text);
-    utterance.lang = job.lang;
-    utterance.rate = rate ? Number(rate.value) : 1;
-    utterance.voice = chosen;
-    utterance.onstart = function () { showJob(job); };
-    utterance.onboundary = function (event) {
-      if (typeof event.charIndex === "number") highlight(job.node, job.start + event.charIndex);
-    };
-    utterance.onend = function () {
-      if (!stopped) speakNext();
-    };
-    utterance.onerror = function (event) {
-      if (event.error === "interrupted" || event.error === "canceled") return;
-      speakRemote(job);
-    };
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function speakRemote(job) {
-    var token = ++audioToken;
-    fetch("/api/speak", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-        "X-CSRF": reader.getAttribute("data-csrf") || ""
-      },
-      body: JSON.stringify({
-        text: job.text,
-        lang: job.lang,
-        rate: rate ? Number(rate.value) : 1
-      })
-    }).then(function (response) {
-      if (!response.ok) throw new Error("speak");
-      return response.blob();
-    }).then(function (blob) {
-      if (stopped || token !== audioToken) return;
-      var url = URL.createObjectURL(blob);
-      var audio = new Audio(url);
-      currentAudio = audio;
-      audio.onended = function () {
-        URL.revokeObjectURL(url);
-        if (currentAudio === audio) currentAudio = null;
-        if (!stopped) speakNext();
-      };
-      audio.onerror = function () {
-        URL.revokeObjectURL(url);
-        if (!stopped) speakNext();
-      };
-      audio.ontimeupdate = function () {
-        if (!audio.duration) return;
-        var index = Math.floor((audio.currentTime / audio.duration) * job.text.length);
-        highlight(job.node, job.start + index);
-      };
-      showJob(job);
-      return audio.play();
-    }).catch(function () {
-      if (stopped || token !== audioToken) return;
-      say(reader.getAttribute("data-speak-failed") || "");
-      speakNext();
+  function releaseButtons() {
+    pressed.forEach(function (button) {
+      if (button.dataset.label) button.textContent = button.dataset.label;
+      button.removeAttribute("aria-busy");
     });
+    pressed = [];
   }
 
-  function haltAudio() {
-    audioToken += 1;
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio = null;
+  function armButton(button) {
+    if (!button) return;
+    button.dataset.label = button.dataset.label || button.textContent;
+    button.textContent = reader.getAttribute("data-label-speaking") || button.dataset.label;
+    button.setAttribute("aria-busy", "true");
+    pressed.push(button);
+  }
+
+  function sayAgain(message) {
+    if (!live || !message) return;
+    live.textContent = "";
+    window.setTimeout(function () { live.textContent = message; }, 40);
+  }
+
+  function requestClip(text, lang) {
+    var key = clipKey(text, lang);
+    if (window.saanAudio) {
+      var saved = window.saanAudio.recall(key);
+      if (saved) return Promise.resolve(saved);
     }
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (flights[key]) return flights[key];
+    function once() {
+      return fetch("/api/speak", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+          "X-CSRF": reader.getAttribute("data-csrf") || ""
+        },
+        body: JSON.stringify({ text: text, lang: lang, rate: rateValue() })
+      }).then(function (response) {
+        if (!response.ok) throw new Error("speak");
+        return response.arrayBuffer();
+      });
+    }
+    flights[key] = once().catch(function () { return once(); }).then(function (bytes) {
+      if (window.saanAudio) window.saanAudio.remember(key, bytes);
+      delete flights[key];
+      return bytes;
+    }, function (error) {
+      delete flights[key];
+      throw error;
+    });
+    return flights[key];
   }
 
   function jobsFor(nodes) {
     var jobs = [];
+    if (!window.saanParts || !window.saanLead) return jobs;
     nodes.forEach(function (node) {
-      segmentText(node.textContent || "").forEach(function (part) {
+      window.saanParts(node.textContent || "", 150, "th-TH").forEach(function (part) {
+        if (!/[A-Za-z\u0E00-\u0E7F]/.test(part.text)) return;
         jobs.push({ node: node, text: part.text, lang: part.lang, start: part.start });
       });
     });
-    return jobs;
+    return window.saanLead(jobs);
   }
 
-  function playNodes(nodes) {
+  function playChain(jobs) {
+    var token = runToken;
+    var mark = 0;
+    if (!window.saanSequence) return;
+    window.saanSequence({
+      parts: jobs,
+      alive: function () { return !stopped && token === runToken; },
+      fetch: function (part) { return requestClip(part.text, part.lang); },
+      onFirst: function () {
+        pending = false;
+        heardAny = true;
+      },
+      onPlay: function (job) {
+        showJob(job);
+        window.cancelAnimationFrame(mark);
+        function track() {
+          if (stopped || token !== runToken || !window.saanAudio) return;
+          var duration = window.saanAudio.duration();
+          if (duration) {
+            var at = Math.floor((window.saanAudio.position() / duration) * job.text.length);
+            highlight(job.node, job.start + at);
+          }
+          mark = window.requestAnimationFrame(track);
+        }
+        track();
+        return function () { window.cancelAnimationFrame(mark); };
+      },
+      onDone: function (heard) {
+        window.cancelAnimationFrame(mark);
+        if (stopped || token !== runToken) return;
+        stopped = true;
+        pending = false;
+        releaseButtons();
+        clearMarks();
+        say(reader.getAttribute(heard ? "data-label-finished" : "data-speak-failed") || "");
+      }
+    });
+  }
+
+  function haltAudio() {
+    runToken += 1;
+    decodedAhead = {};
+    if (window.saanAudio) window.saanAudio.stop();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function playNodes(nodes, button) {
+    if (pending || (button && !stopped && pressed.indexOf(button) !== -1)) {
+      sayAgain(reader.getAttribute("data-label-speaking"));
+      return;
+    }
+    var jobs = jobsFor(nodes);
+    if (!jobs.length) return;
     haltAudio();
-    chain = jobsFor(nodes);
-    chainIndex = 0;
+    if (window.saanAudio) window.saanAudio.arm();
+    releaseButtons();
+    armButton(button);
+    chain = jobs;
     stopped = false;
-    announced = false;
+    pending = true;
+    heardAny = false;
     clearMarks();
-    speakNext();
+    say(reader.getAttribute("data-label-speaking"));
+    playChain(chain);
+  }
+
+  function prime() {
+    var jobs = jobsFor([].slice.call(document.querySelectorAll("[data-snippet-text]")));
+    jobs.slice(0, 2).forEach(function (job) {
+      requestClip(job.text, job.lang).catch(function () {});
+    });
+  }
+
+  var status = reader.getAttribute("data-status");
+  if (status && status !== "processing" && status !== "failed") {
+    window.setTimeout(prime, 200);
   }
 
   if (playAll) {
     playAll.addEventListener("click", function () {
-      if (currentAudio && currentAudio.paused) {
-        currentAudio.play();
+      if (window.saanAudio && window.saanAudio.paused()) {
+        window.saanAudio.unlock();
+        window.saanAudio.resume();
         say(reader.getAttribute("data-label-speaking"));
         return;
       }
@@ -493,13 +514,13 @@
         say(reader.getAttribute("data-label-speaking"));
         return;
       }
-      playNodes([].slice.call(document.querySelectorAll("[data-snippet-text]")));
+      playNodes([].slice.call(document.querySelectorAll("[data-snippet-text]")), playAll);
     });
   }
   if (pauseBtn) {
     pauseBtn.addEventListener("click", function () {
-      if (currentAudio && !currentAudio.paused) {
-        currentAudio.pause();
+      if (window.saanAudio && window.saanAudio.playing()) {
+        window.saanAudio.pause();
         say(reader.getAttribute("data-label-paused"));
         return;
       }
@@ -512,7 +533,9 @@
   if (stopBtn) {
     stopBtn.addEventListener("click", function () {
       stopped = true;
+      pending = false;
       haltAudio();
+      releaseButtons();
       clearMarks();
       say(reader.getAttribute("data-label-stopped"));
     });
@@ -520,7 +543,7 @@
   document.querySelectorAll("[data-play]").forEach(function (button) {
     button.addEventListener("click", function () {
       var node = document.getElementById(button.getAttribute("data-play"));
-      if (node) playNodes([node]);
+      if (node) playNodes([node], button);
     });
   });
 

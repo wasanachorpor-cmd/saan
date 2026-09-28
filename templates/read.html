@@ -22,8 +22,9 @@
         </form>
         <form id="camera-form" class="stack" method="post" action="/documents" enctype="multipart/form-data">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          <input id="camera-input" class="camera-file" name="image" type="file" accept="image/*" capture="environment">
+          <input id="camera-input" class="camera-file" name="image" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
           <button class="btn btn-primary" id="open-camera" type="button">{{ t.use_camera }}</button>
+          <p class="hint" id="camera-note" hidden></p>
           <div class="camera-live" id="camera-live" hidden>
             <video id="camera-video" playsinline autoplay muted></video>
             <button class="btn btn-primary" id="camera-snap" type="button">{{ t.camera_snap }}</button>
@@ -65,7 +66,7 @@
           <span class="sr-only">{{ t.status }}: </span>{{ t['status_' ~ document.status] }}
         </p>
         {% if document.engine %}
-          <p class="hint">{{ t.engine }}: {{ document.engine }}{% if document.confidence is not none %} · {{ t.confidence }}: {{ document.confidence }}%{% endif %}</p>
+          <p class="hint">{{ t.engine }}: {{ document.engine }}</p>
         {% endif %}
 
         {% if document.status == 'processing' %}
@@ -95,6 +96,9 @@
             <div class="banner" role="status"><p>{{ t.complex_warning }}</p></div>
           {% endif %}
           <p class="hint">{{ t.accuracy_note }}</p>
+          {% if document.confidence is not none %}
+            <p class="scan-confidence" role="status">{{ t.scan_confidence.format(n=document.confidence | int) }}</p>
+          {% endif %}
           <section aria-labelledby="transcript-title">
             <h2 id="transcript-title">{{ t.transcript }}</h2>
             {% for snippet in document.snippets %}
@@ -103,7 +107,7 @@
                   <h3 id="sn-{{ snippet.id }}">{{ t.snippet_label.format(n=loop.index) }}</h3>
                   <p class="status status-{{ snippet.status }}">{{ t['status_' ~ snippet.status] }}</p>
                   {% if snippet.confidence is not none and snippet.confidence < 70 %}
-                    <p class="pill">{{ t.low_confidence }}: {{ snippet.confidence }}%</p>
+                    <p class="pill">{{ t.low_confidence }}: {{ snippet.confidence | int }}%</p>
                   {% endif %}
                 </div>
                 <div class="snippet-text" id="text-{{ snippet.id }}" data-snippet-text>{{ snippet.current_text | thai }}</div>
@@ -146,5 +150,5 @@
   </section>
 {% endblock %}
 {% block scripts %}
-  <script src="/static/js/read.js?v=9" defer></script>
+  <script src="/static/js/read.js?v=16" defer></script>
 {% endblock %}

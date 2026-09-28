@@ -61,7 +61,7 @@
                       <div class="mission-card-copy">
                     <p class="status status-{{ item.status }}">{{ t['status_' ~ item.status] }}</p>
                     {% if item.confidence is not none and item.confidence < 70 %}
-                      <p class="pill">{{ t.low_confidence }}: {{ item.confidence }}%</p>
+                      <p class="pill">{{ t.low_confidence }}: {{ item.confidence | int }}%</p>
                     {% endif %}
                     <p class="excerpt">{{ item.current_text | thai }}</p>
                     {% if item.flag_note %}

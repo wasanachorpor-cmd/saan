@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import re
 import time
@@ -547,6 +548,32 @@ def _mean_confidence(pytesseract, image, lang: str) -> float | None:
     return round(sum(scores) / len(scores), 1)
 
 
+_GEMINI_PROMPT = (
+    "Transcribe the printed words on this page in reading order, top to bottom. "
+    "Skip photographs, drawings, icons, and decorative art. Do not describe pictures "
+    "and do not invent captions. If a figure has printed words or a caption, "
+    "transcribe those words in their own paragraph. "
+    "Keep Thai vowel marks and tone markers on the correct consonants, "
+    "in Unicode order: consonant, then lower vowel, then upper vowel, then tone mark. "
+    "Keep numbers, punctuation, and line breaks exactly as printed. "
+    "Do not translate, summarize, omit printed words, or add words that are not printed. "
+    "Separate paragraphs with a blank line. "
+    "Return a JSON object with two fields and no other text. "
+    "text is the transcription. "
+    "confidence is an integer from 0 to 100 for how sure you are that the transcription "
+    "matches the printed words. Use 100 only when every word is sharp and complete. "
+    "Lower it when words are blurry, cropped, covered, or guessed."
+)
+
+_GEMINI_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "text": {"type": "STRING"},
+        "confidence": {"type": "INTEGER"},
+    },
+    "required": ["text", "confidence"],
+}
+
 _GEMINI_FALLBACKS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite")
 
 
@@ -580,26 +607,104 @@ def _gemini(path: Path) -> OcrResult:
     raise RuntimeError("gemini_busy" if last_busy else "ocr_empty")
 
 
+def _clamp_percent(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in {float("inf"), float("-inf")}:
+        return None
+    return float(int(round(max(0.0, min(100.0, number)))))
+
+
+def estimate_confidence(text: str) -> float:
+    """A cautious percent when the reader does not report its own score."""
+    cleaned = clean_ocr_text(text)
+    letters = len(_LETTER.findall(cleaned))
+    if letters <= 0:
+        return 20.0
+    junk = len(_JUNK.findall(cleaned))
+    score = 88.0 - min(40.0, (junk / letters) * 160.0)
+    if letters < 20:
+        score -= 15
+    if looks_complex(cleaned):
+        score -= 18
+    return float(int(round(max(20.0, min(90.0, score)))))
+
+
+def _json_object(text: str) -> dict | None:
+    candidate = text.strip()
+    try:
+        data = json.loads(candidate)
+    except json.JSONDecodeError:
+        start = candidate.find("{")
+        end = candidate.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            data = json.loads(candidate[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    return data if isinstance(data, dict) else None
+
+
+def _parse_gemini_reading(raw: str) -> tuple[str, float | None]:
+    """Split a model reply into transcription text and an optional percent."""
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    payload = _json_object(cleaned)
+    if payload is None or "text" not in payload:
+        return cleaned, None
+    return str(payload.get("text") or "").strip(), _clamp_percent(payload.get("confidence"))
+
+
+def _candidate_text(body: dict) -> str:
+    candidates = body.get("candidates") or []
+    if not candidates:
+        raise RuntimeError("ocr_empty")
+    parts = ((candidates[0].get("content") or {}).get("parts")) or []
+    texts: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict) or part.get("thought"):
+            continue
+        text = part.get("text")
+        if isinstance(text, str) and text.strip():
+            texts.append(text.strip())
+    if not texts:
+        raise RuntimeError("ocr_empty")
+    for text in reversed(texts):
+        if text.lstrip().startswith("{") or '"text"' in text:
+            return text
+    return "\n".join(texts)
+
+
 def _gemini_once(path: Path, model: str) -> OcrResult:
+    try:
+        return _gemini_request(path, model, structured=True)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 400:
+            raise
+        log.warning("Gemini %s rejected a confidence score, retrying plain text", model)
+        return _gemini_request(path, model, structured=False)
+
+
+def _gemini_request(path: Path, model: str, structured: bool) -> OcrResult:
     suffix = path.suffix.lower()
     mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(
         suffix, "image/jpeg"
     )
+    config: dict = {"temperature": 0}
+    if structured:
+        config["responseMimeType"] = "application/json"
+        config["responseSchema"] = _GEMINI_SCHEMA
     payload = {
         "contents": [
             {
                 "parts": [
-                    {
-                        "text": (
-                            "Extract every visible Thai and English character from this document image. "
-                            "Keep Thai vowel marks and tone markers on the correct consonants, "
-                            "in Unicode order: consonant, then lower vowel, then upper vowel, then tone mark. "
-                            "Keep numbers, punctuation, and line breaks exactly as printed. "
-                            "Do not translate, summarize, omit, or invent text. "
-                            "Separate paragraphs with a blank line. "
-                            "Return only the transcription."
-                        )
-                    },
+                    {"text": _GEMINI_PROMPT},
                     {
                         "inline_data": {
                             "mime_type": mime,
@@ -609,7 +714,7 @@ def _gemini_once(path: Path, model: str) -> OcrResult:
                 ]
             }
         ],
-        "generationConfig": {"temperature": 0.1},
+        "generationConfig": config,
     }
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     response = httpx.post(
@@ -619,15 +724,10 @@ def _gemini_once(path: Path, model: str) -> OcrResult:
         timeout=60,
     )
     response.raise_for_status()
-    body = response.json()
-    candidates = body.get("candidates") or []
-    if not candidates:
-        raise RuntimeError("ocr_empty")
-    parts = ((candidates[0].get("content") or {}).get("parts")) or []
-    text = "\n".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
-    text = re.sub(r"^```[a-zA-Z]*\n", "", text)
-    text = re.sub(r"\n```$", "", text).strip()
+    text, confidence = _parse_gemini_reading(_candidate_text(response.json()))
     text = clean_ocr_text(text)
     if not text:
         raise RuntimeError("ocr_empty")
-    return OcrResult(text=text, engine="gemini", confidence=None)
+    if confidence is None:
+        confidence = estimate_confidence(text)
+    return OcrResult(text=text, engine="gemini", confidence=confidence)
